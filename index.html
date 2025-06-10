@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <title>고등학교 성적 시각화</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.1.0/dist/chartjs-plugin-annotation.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
     body {
       max-width: 900px;
@@ -21,7 +21,25 @@
       background: #fff;
       border-radius: 10px;
       box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
+      margin-bottom: 1em;
+    }
+    .download-buttons {
+      text-align: center;
       margin-bottom: 3em;
+    }
+    button {
+      background-color: #4caf50;
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 5px;
+      font-size: 14px;
+      cursor: pointer;
+      margin: 0 6px;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #45a049;
     }
   </style>
 </head>
@@ -31,11 +49,32 @@
 
 <h2>📊 성적 원점수</h2>
 <canvas id="chart-score-raw" width="800" height="400"></canvas>
+<div class="download-buttons">
+  <button onclick="downloadChart('chart-score-raw')">원점수 차트 다운로드</button>
+</div>
 
 <h2>📈 성적 표준점수 (Z-score)</h2>
 <canvas id="chart-score-z" width="800" height="400"></canvas>
+<div class="download-buttons">
+  <button onclick="downloadChart('chart-score-z')">Z-score 차트 다운로드</button>
+</div>
 
 <script>
+
+  function downloadChartAsPDF(canvasId, title) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  const canvas = document.getElementById(canvasId);
+  const imgData = canvas.toDataURL('image/png');
+
+  doc.setFontSize(18);
+  doc.text(title, 10, 20);
+  doc.addImage(imgData, 'PNG', 10, 30, 180, 90);
+  doc.save(`${canvasId}.pdf`);
+}
+
+  
   // 차트 생성 함수
   async function loadChart(jsonPath, canvasId, yLabel, isZscore = false) {
     const response = await fetch(jsonPath);
@@ -55,23 +94,9 @@
       fill: true
     }));
 
-    // y축 설정 (원점수 / 표준점수별 분기)
-    let yMin, yMax, annotationLine, annotationLabel, annotationColor;
-    if (!isZscore) {
-      // 원점수: 60~100, 90점 기준선
-      yMin = 60;
-      yMax = 100;
-      annotationLine = 90;
-      annotationLabel = '90점 기준';
-      annotationColor = 'tomato';
-    } else {
-      // 표준점수: 80~160, 평균 100 기준선
-      yMin = 80;
-      yMax = 160;
-      annotationLine = 100;
-      annotationLabel = '평균 100점';
-      annotationColor = '#4caf50';
-    }
+    // y축 범위 설정
+    const yMin = isZscore ? 80 : 60;
+    const yMax = isZscore ? 160 : 100;
 
     new Chart(ctx, {
       type: 'line',
@@ -90,27 +115,6 @@
                   isZscore ? ti.raw.toFixed(2) : ti.raw + "점"
                 }`
             }
-          },
-          annotation: {
-            annotations: {
-              line1: {
-                type: 'line',
-                yMin: annotationLine,
-                yMax: annotationLine,
-                borderColor: annotationColor,
-                borderWidth: 2,
-                label: {
-                  content: annotationLabel,
-                  enabled: true,
-                  position: 'start',
-                  backgroundColor: annotationColor,
-                  color: '#fff',
-                  font: { weight: 'bold' },
-                  padding: 6,
-                  cornerRadius: 4,
-                }
-              }
-            }
           }
         },
         interaction: { mode: 'nearest', axis: 'x', intersect: false },
@@ -120,24 +124,40 @@
             max: yMax,
             title: { display: true, text: yLabel },
             grid: {
-              color: function(context) {
-                if (context.tick.value === annotationLine) return annotationColor;
-                return '#e0e0e0';
-              }
+              color: '#e0e0e0'
             }
           },
           x: {
             title: { display: true, text: '시험 시기' }
           }
         }
-      },
-      plugins: [Chart.registry.getPlugin('annotation')]
+      }
     });
+  }
+
+  // 이미지 다운로드 함수
+  function downloadChart(canvasId) {
+    const canvas = document.getElementById(canvasId);
+    const link = document.createElement('a');
+    link.href = canvas.toDataURL('image/png');
+    link.download = `${canvasId}.png`;
+    link.click();
   }
 
   // 차트 로딩
   loadChart('test_score_raw_data.json', 'chart-score-raw', '점수', false);
   loadChart('test_z_score_data.json', 'chart-score-z', '표준점수 (Z-score)', true);
+
+  <div class="download-buttons">
+  <button onclick="downloadChart('chart-score-raw')">원점수 차트 다운로드</button>
+  <button onclick="downloadChartAsPDF('chart-score-raw', '성적 원점수 차트')">PDF로 저장</button>
+</div>
+
+<div class="download-buttons">
+  <button onclick="downloadChart('chart-score-z')">Z-score 차트 다운로드</button>
+  <button onclick="downloadChartAsPDF('chart-score-z', '성적 Z-score 차트')">PDF로 저장</button>
+</div>
+
 </script>
 
 </body>
