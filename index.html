@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>고등학교 성적 시각화</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      max-width: 900px;
+      margin: 2em auto;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f8f9fa;
+      color: #222;
+    }
+    h1, h2 {
+      text-align: center;
+      margin-bottom: 1em;
+    }
+    canvas {
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
+      margin-bottom: 3em;
+    }
+  </style>
+</head>
+<body>
+
+<h1>고등학교 성적 변화</h1>
+
+<h2>📊 성적 원점수</h2>
+<canvas id="chart-score-raw" width="800" height="400"></canvas>
+
+<h2>📈 성적 표준점수 (Z-score)</h2>
+<canvas id="chart-score-z" width="800" height="400"></canvas>
+
+<script>
+  async function loadChart(jsonPath, canvasId, yLabel, isZscore = false) {
+    const response = await fetch(jsonPath);
+    const chartData = await response.json();
+    const ctx = document.getElementById(canvasId).getContext('2d');
+
+    const colorPalette = ['#8b73ff', '#ffa8dc', '#91bfff', '#ffb347', '#7ed6df'];
+
+    const datasetsStyled = chartData.datasets.map((ds, idx) => ({
+      ...ds,
+      borderColor: colorPalette[idx % colorPalette.length],
+      backgroundColor: colorPalette[idx % colorPalette.length] + '33',
+      borderWidth: 2,
+      tension: 0.4,
+      pointRadius: 3,
+      pointHoverRadius: 5,
+      fill: true
+    }));
+
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: chartData.labels,
+        datasets: datasetsStyled
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: 'top' },
+          tooltip: {
+            callbacks: {
+              label: (ti) =>
+                `${ti.dataset.label}: ${
+                  isZscore ? ti.raw.toFixed(2) : ti.raw + "점"
+                }`
+            }
+          }
+        },
+        interaction: { mode: 'nearest', axis: 'x', intersect: false },
+        scales: {
+          y: {
+            beginAtZero: !isZscore,
+            title: { display: true, text: yLabel }
+          },
+          x: {
+            title: { display: true, text: '시험 시기' }
+          }
+        }
+      }
+    });
+  }
+
+  // 차트 로딩
+  loadChart('test_score_raw_data.json', 'chart-score-raw', '점수', false);
+  loadChart('test_z_score_data.json', 'chart-score-z', 'Z-score', true);
+</script>
+
+</body>
+</html>
