@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <title>고등학교 성적 시각화</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.1.0/dist/chartjs-plugin-annotation.min.js"></script>
   <style>
     body {
       max-width: 900px;
@@ -35,6 +36,7 @@
 <canvas id="chart-score-z" width="800" height="400"></canvas>
 
 <script>
+  // 차트 생성 함수
   async function loadChart(jsonPath, canvasId, yLabel, isZscore = false) {
     const response = await fetch(jsonPath);
     const chartData = await response.json();
@@ -53,6 +55,24 @@
       fill: true
     }));
 
+    // y축 설정 (원점수 / 표준점수별 분기)
+    let yMin, yMax, annotationLine, annotationLabel, annotationColor;
+    if (!isZscore) {
+      // 원점수: 60~100, 90점 기준선
+      yMin = 60;
+      yMax = 100;
+      annotationLine = 90;
+      annotationLabel = '90점 기준';
+      annotationColor = 'tomato';
+    } else {
+      // 표준점수: 80~160, 평균 100 기준선
+      yMin = 80;
+      yMax = 160;
+      annotationLine = 100;
+      annotationLabel = '평균 100점';
+      annotationColor = '#4caf50';
+    }
+
     new Chart(ctx, {
       type: 'line',
       data: {
@@ -70,25 +90,54 @@
                   isZscore ? ti.raw.toFixed(2) : ti.raw + "점"
                 }`
             }
+          },
+          annotation: {
+            annotations: {
+              line1: {
+                type: 'line',
+                yMin: annotationLine,
+                yMax: annotationLine,
+                borderColor: annotationColor,
+                borderWidth: 2,
+                label: {
+                  content: annotationLabel,
+                  enabled: true,
+                  position: 'start',
+                  backgroundColor: annotationColor,
+                  color: '#fff',
+                  font: { weight: 'bold' },
+                  padding: 6,
+                  cornerRadius: 4,
+                }
+              }
+            }
           }
         },
         interaction: { mode: 'nearest', axis: 'x', intersect: false },
         scales: {
           y: {
-            beginAtZero: !isZscore,
-            title: { display: true, text: yLabel }
+            min: yMin,
+            max: yMax,
+            title: { display: true, text: yLabel },
+            grid: {
+              color: function(context) {
+                if (context.tick.value === annotationLine) return annotationColor;
+                return '#e0e0e0';
+              }
+            }
           },
           x: {
             title: { display: true, text: '시험 시기' }
           }
         }
-      }
+      },
+      plugins: [Chart.registry.getPlugin('annotation')]
     });
   }
 
   // 차트 로딩
   loadChart('test_score_raw_data.json', 'chart-score-raw', '점수', false);
-  loadChart('test_z_score_data.json', 'chart-score-z', 'Z-score', true);
+  loadChart('test_z_score_data.json', 'chart-score-z', '표준점수 (Z-score)', true);
 </script>
 
 </body>
