@@ -61,18 +61,7 @@
 
 <script>
 
-  function downloadChartAsPDF(canvasId, title) {
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
-
-  const canvas = document.getElementById(canvasId);
-  const imgData = canvas.toDataURL('image/png');
-
-  doc.setFontSize(18);
-  doc.text(title, 10, 20);
-  doc.addImage(imgData, 'PNG', 10, 30, 180, 90);
-  doc.save(`${canvasId}.pdf`);
-}
+  
 
   
   // 차트 생성 함수
@@ -143,6 +132,18 @@
     link.download = `${canvasId}.png`;
     link.click();
   }
+  function downloadChartAsPDF(canvasId, title) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  const canvas = document.getElementById(canvasId);
+  const imgData = canvas.toDataURL('image/png');
+
+  doc.setFontSize(18);
+  doc.text(title, 10, 20);
+  doc.addImage(imgData, 'PNG', 10, 30, 180, 90);
+  doc.save(`${canvasId}.pdf`);
+}
 
   // 차트 로딩
   loadChart('test_score_raw_data.json', 'chart-score-raw', '점수', false);
