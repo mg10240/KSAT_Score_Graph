@@ -3,12 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <title>고등학교 성적 시각화</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
     body {
       max-width: 900px;
       margin: 2em auto;
+      padding: 0 1em;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       background: #f8f9fa;
       color: #222;
@@ -21,25 +23,38 @@
       background: #fff;
       border-radius: 10px;
       box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
-      margin-bottom: 1em;
+      margin-bottom: 1.5em;
+      max-width: 100%;
     }
-    .download-buttons {
-      text-align: center;
-      margin-bottom: 3em;
-    }
-    button {
-      background-color: #4caf50;
+    button, label {
+      display: inline-block;
+      margin: 0.4em;
+      padding: 0.5em 1em;
+      background: #4caf50;
       color: white;
       border: none;
-      padding: 10px 16px;
-      border-radius: 5px;
+      border-radius: 6px;
       font-size: 14px;
       cursor: pointer;
-      margin: 0 6px;
-      transition: background-color 0.3s;
+      text-align: center;
     }
-    button:hover {
-      background-color: #45a049;
+    button:hover, label:hover {
+      background: #43a047;
+    }
+    input[type="file"] {
+      display: none;
+    }
+    .button-group {
+      text-align: center;
+      margin-bottom: 1.5em;
+      flex-wrap: wrap;
+    }
+    @media (max-width: 600px) {
+      button, label {
+        width: 100%;
+        box-sizing: border-box;
+        margin: 0.3em 0;
+      }
     }
   </style>
 </head>
@@ -47,31 +62,40 @@
 
 <h1>고등학교 성적 변화</h1>
 
+<div class="button-group">
+  <label for="uploadRaw">📁 원점수 JSON 업로드</label>
+  <input type="file" id="uploadRaw" accept=".json" />
+
+  <label for="uploadZ">📁 Z-score JSON 업로드</label>
+  <input type="file" id="uploadZ" accept=".json" />
+</div>
+
 <h2>📊 성적 원점수</h2>
 <canvas id="chart-score-raw" width="800" height="400"></canvas>
-<div class="download-buttons">
-  <button onclick="downloadChart('chart-score-raw')">원점수 차트 다운로드</button>
+<div class="button-group">
+  <button onclick="downloadChart('chart-score-raw')">📸 원점수 차트 저장</button>
+  <button onclick="deleteChart('raw')">🗑️ 원점수 차트 삭제</button>
 </div>
 
 <h2>📈 성적 표준점수 (Z-score)</h2>
 <canvas id="chart-score-z" width="800" height="400"></canvas>
-<div class="download-buttons">
-  <button onclick="downloadChart('chart-score-z')">Z-score 차트 다운로드</button>
+<div class="button-group">
+  <button onclick="downloadChart('chart-score-z')">📸 Z-score 차트 저장</button>
+  <button onclick="deleteChart('z')">🗑️ Z-score 차트 삭제</button>
+</div>
+
+<div class="button-group">
+  <button onclick="downloadPDF()">📄 전체 차트 PDF 저장</button>
+  <button onclick="resetAll()">🔁 초기화 (기본 데이터로 복원)</button>
 </div>
 
 <script>
+  let chartRaw, chartZ;
 
-  
-
-  
-  // 차트 생성 함수
-  async function loadChart(jsonPath, canvasId, yLabel, isZscore = false) {
-    const response = await fetch(jsonPath);
-    const chartData = await response.json();
+  async function loadChartFromData(chartData, canvasId, yLabel, isZscore = false) {
     const ctx = document.getElementById(canvasId).getContext('2d');
 
     const colorPalette = ['#8b73ff', '#ffa8dc', '#91bfff', '#ffb347', '#7ed6df'];
-
     const datasetsStyled = chartData.datasets.map((ds, idx) => ({
       ...ds,
       borderColor: colorPalette[idx % colorPalette.length],
@@ -83,11 +107,10 @@
       fill: true
     }));
 
-    // y축 범위 설정
     const yMin = isZscore ? 80 : 60;
     const yMax = isZscore ? 160 : 100;
 
-    new Chart(ctx, {
+    return new Chart(ctx, {
       type: 'line',
       data: {
         labels: chartData.labels,
@@ -95,6 +118,7 @@
       },
       options: {
         responsive: true,
+        maintainAspectRatio: false,
         plugins: {
           legend: { position: 'top' },
           tooltip: {
@@ -112,9 +136,7 @@
             min: yMin,
             max: yMax,
             title: { display: true, text: yLabel },
-            grid: {
-              color: '#e0e0e0'
-            }
+            grid: { color: '#e0e0e0' }
           },
           x: {
             title: { display: true, text: '시험 시기' }
@@ -124,7 +146,12 @@
     });
   }
 
-  // 이미지 다운로드 함수
+  async function fetchAndLoadChart(jsonPath, canvasId, yLabel, isZscore = false) {
+    const res = await fetch(jsonPath);
+    const data = await res.json();
+    return loadChartFromData(data, canvasId, yLabel, isZscore);
+  }
+
   function downloadChart(canvasId) {
     const canvas = document.getElementById(canvasId);
     const link = document.createElement('a');
@@ -132,34 +159,102 @@
     link.download = `${canvasId}.png`;
     link.click();
   }
-  function downloadChartAsPDF(canvasId, title) {
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
 
-  const canvas = document.getElementById(canvasId);
-  const imgData = canvas.toDataURL('image/png');
+  async function downloadPDF() {
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const canvas1 = document.getElementById('chart-score-raw');
+    const canvas2 = document.getElementById('chart-score-z');
 
-  doc.setFontSize(18);
-  doc.text(title, 10, 20);
-  doc.addImage(imgData, 'PNG', 10, 30, 180, 90);
-  doc.save(`${canvasId}.pdf`);
-}
+    const img1 = canvas1.toDataURL('image/png');
+    const img2 = canvas2.toDataURL('image/png');
 
-  // 차트 로딩
-  loadChart('test_score_raw_data.json', 'chart-score-raw', '점수', false);
-  loadChart('test_z_score_data.json', 'chart-score-z', '표준점수 (Z-score)', true);
+    pdf.text('고등학교 성적 변화 - 원점수', 10, 10);
+    pdf.addImage(img1, 'PNG', 10, 15, 180, 80);
 
-  <div class="download-buttons">
-  <button onclick="downloadChart('chart-score-raw')">원점수 차트 다운로드</button>
-  <button onclick="downloadChartAsPDF('chart-score-raw', '성적 원점수 차트')">PDF로 저장</button>
-</div>
+    pdf.text('고등학교 성적 변화 - Z-score', 10, 105);
+    pdf.addImage(img2, 'PNG', 10, 110, 180, 80);
 
-<div class="download-buttons">
-  <button onclick="downloadChart('chart-score-z')">Z-score 차트 다운로드</button>
-  <button onclick="downloadChartAsPDF('chart-score-z', '성적 Z-score 차트')">PDF로 저장</button>
-</div>
+    pdf.save('성적_시각화.pdf');
+  }
 
+  async function loadChartsFromStorage() {
+    const rawData = localStorage.getItem('rawData');
+    const zData = localStorage.getItem('zData');
+
+    if (rawData) {
+      const parsed = JSON.parse(rawData);
+      if (chartRaw) chartRaw.destroy();
+      chartRaw = await loadChartFromData(parsed, 'chart-score-raw', '점수', false);
+    } else {
+      chartRaw = await fetchAndLoadChart('test_score_raw_data.json', 'chart-score-raw', '점수', false);
+    }
+
+    if (zData) {
+      const parsed = JSON.parse(zData);
+      if (chartZ) chartZ.destroy();
+      chartZ = await loadChartFromData(parsed, 'chart-score-z', '표준점수 (Z-score)', true);
+    } else {
+      chartZ = await fetchAndLoadChart('test_z_score_data.json', 'chart-score-z', '표준점수 (Z-score)', true);
+    }
+  }
+
+  function deleteChart(type) {
+    if (type === 'raw') {
+      localStorage.removeItem('rawData');
+      if (chartRaw) {
+        chartRaw.destroy();
+        chartRaw = null;
+      }
+      document.getElementById('chart-score-raw').getContext('2d').clearRect(0, 0, 800, 400);
+    }
+    if (type === 'z') {
+      localStorage.removeItem('zData');
+      if (chartZ) {
+        chartZ.destroy();
+        chartZ = null;
+      }
+      document.getElementById('chart-score-z').getContext('2d').clearRect(0, 0, 800, 400);
+    }
+  }
+
+  function resetAll() {
+    localStorage.removeItem('rawData');
+    localStorage.removeItem('zData');
+    loadChartsFromStorage();
+  }
+
+  // 초기 로딩
+  window.onload = loadChartsFromStorage;
+
+  // 업로드 이벤트
+  document.getElementById('uploadRaw').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async function (evt) {
+      const data = JSON.parse(evt.target.result);
+      localStorage.setItem('rawData', JSON.stringify(data));
+      if (chartRaw) chartRaw.destroy();
+      chartRaw = await loadChartFromData(data, 'chart-score-raw', '점수', false);
+    };
+    reader.readAsText(file);
+  });
+
+  document.getElementById('uploadZ').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async function (evt) {
+      const data = JSON.parse(evt.target.result);
+      localStorage.setItem('zData', JSON.stringify(data));
+      if (chartZ) chartZ.destroy();
+      chartZ = await loadChartFromData(data, 'chart-score-z', '표준점수 (Z-score)', true);
+    };
+    reader.readAsText(file);
+  });
 </script>
 
 </body>
 </html>
+
