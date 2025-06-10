@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>성적 데이터 편집기</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      max-width: 900px;
+      margin: 2em auto;
+      padding: 0 1em;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f8f9fa;
+      color: #222;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 1em;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 1em;
+      background: #fff;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: center;
+    }
+    th {
+      background: #f1f1f1;
+    }
+    input[type="text"], input[type="number"] {
+      width: 80px;
+      padding: 4px;
+      font-size: 14px;
+    }
+    button {
+      padding: 6px 12px;
+      margin: 4px;
+      font-size: 13px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .add-btn { background: #4caf50; color: #fff; }
+    .del-btn { background: #e74c3c; color: #fff; }
+    .download-btn {
+      background: #3498db;
+      color: #fff;
+      display: block;
+      width: 100%;
+      margin-top: 1em;
+    }
+  </style>
+</head>
+<body>
+
+<h1>📋 성적 데이터 편집기</h1>
+
+<table id="dataTable">
+  <thead>
+    <tr>
+      <th>시험 시기</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><input type="text" value="고1 3월"></td>
+    </tr>
+  </tbody>
+</table>
+
+<div style="text-align:center">
+  <button class="add-btn" onclick="addLabel()">+ 시험 시기 추가</button>
+</div>
+
+<hr>
+
+<div id="subjectArea">
+  <h3>과목 & 점수 입력</h3>
+  <div id="subjects"></div>
+  <button class="add-btn" onclick="addSubject()">+ 과목 추가</button>
+</div>
+
+<button class="download-btn" onclick="downloadJSON()">📥 JSON 다운로드</button>
+
+<script>
+  const dataTable = document.getElementById('dataTable').getElementsByTagName('tbody')[0];
+  const subjectsDiv = document.getElementById('subjects');
+
+  function addLabel() {
+    const row = dataTable.insertRow();
+    const cell = row.insertCell();
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = `시험 시기`;
+    cell.appendChild(input);
+  }
+
+  function addSubject() {
+    const container = document.createElement('div');
+    container.style.marginBottom = '0.5em';
+
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.placeholder = '과목명';
+    nameInput.style.marginRight = '0.5em';
+
+    const scores = [];
+    const labelRows = dataTable.rows;
+    for (let i = 0; i < labelRows.length; i++) {
+      const scoreInput = document.createElement('input');
+      scoreInput.type = 'number';
+      scoreInput.placeholder = '점수';
+      scoreInput.style.marginRight = '0.3em';
+      scores.push(scoreInput);
+    }
+
+    const delBtn = document.createElement('button');
+    delBtn.textContent = '삭제';
+    delBtn.className = 'del-btn';
+    delBtn.onclick = () => subjectsDiv.removeChild(container);
+
+    container.appendChild(nameInput);
+    scores.forEach(score => container.appendChild(score));
+    container.appendChild(delBtn);
+
+    subjectsDiv.appendChild(container);
+  }
+
+  function downloadJSON() {
+    const labels = [];
+    for (let i = 0; i < dataTable.rows.length; i++) {
+      labels.push(dataTable.rows[i].cells[0].children[0].value);
+    }
+
+    const subjects = subjectsDiv.children;
+    const datasets = [];
+    for (let i = 0; i < subjects.length; i++) {
+      const inputs = subjects[i].getElementsByTagName('input');
+      const label = inputs[0].value;
+      const data = [];
+      for (let j = 1; j < inputs.length; j++) {
+        data.push(Number(inputs[j].value));
+      }
+      datasets.push({ label, data });
+    }
+
+    const json = { labels, datasets };
+    const blob = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'custom_score_data.json';
+    link.click();
+  }
+</script>
+
+</body>
+</html>
