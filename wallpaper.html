@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>iPad Wallpaper Maker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { margin: 0; background: #fff; }
+    canvas { display: block; margin: 0 auto; }
+    button, label {
+      display: block;
+      margin: 1em auto;
+      padding: 0.5em 1em;
+      font-size: 16px;
+      background: #333;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      text-align: center;
+    }
+    input[type="file"] { display: none; }
+  </style>
+</head>
+<body>
+
+<label for="uploadJson">📁 JSON 데이터 불러오기</label>
+<input type="file" id="uploadJson" accept=".json" />
+<canvas id="wallpaperChart" width="2048" height="2732"></canvas>
+<button onclick="downloadWallpaper()">💾 배경화면 저장</button>
+
+<script>
+let chart;
+
+function recreateCanvas() {
+  const container = document.body;
+  const oldCanvas = document.getElementById('wallpaperChart');
+  if (oldCanvas) oldCanvas.remove();
+  const newCanvas = document.createElement('canvas');
+  newCanvas.id = 'wallpaperChart';
+  newCanvas.width = 2048;
+  newCanvas.height = 2732;
+  container.insertBefore(newCanvas, document.querySelector('button'));
+  return newCanvas.getContext('2d');
+}
+
+function loadChartFromData(chartData) {
+  const ctx = recreateCanvas();
+  if (chart) chart.destroy();
+
+  const colorPalette = ['#ff5c5c', '#5c7cfa', '#feca57', '#1dd1a1', '#54a0ff'];
+
+  const datasetsStyled = chartData.datasets.map((ds, idx) => ({
+    ...ds,
+    borderColor: colorPalette[idx % colorPalette.length],
+    borderWidth: 5,
+    fill: false,
+    tension: 0.4,
+    pointRadius: 0
+  }));
+
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: chartData.labels,
+      datasets: datasetsStyled
+    },
+    options: {
+      responsive: false,
+      maintainAspectRatio: false,
+      animation: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { enabled: false }
+      },
+      scales: {
+        x: { display: false },
+        y: { display: false }
+      },
+      layout: {
+        padding: {
+          left: 0,
+          right: 0,
+          top: 2300,
+          bottom: 0
+        }
+      },
+      elements: {
+        line: { borderCapStyle: 'round' }
+      }
+    }
+  });
+}
+
+function downloadWallpaper() {
+  const link = document.createElement('a');
+  link.href = document.getElementById('wallpaperChart').toDataURL('image/png');
+  link.download = 'ipad_wallpaper.png';
+  link.click();
+}
+
+document.getElementById('uploadJson').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function (evt) {
+    const data = JSON.parse(evt.target.result);
+    localStorage.setItem('wallpaperData', JSON.stringify(data));
+    loadChartFromData(data);
+  };
+  reader.readAsText(file);
+});
+
+window.onload = () => {
+  const savedData = localStorage.getItem('wallpaperData');
+  if (savedData) loadChartFromData(JSON.parse(savedData));
+};
+</script>
+
+</body>
+</html>
