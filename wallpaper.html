@@ -2,20 +2,21 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>iPad Wallpaper Maker - 최종</title>
+  <title>iPad 성적 그래프 Wallpaper</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body {
       margin: 0;
-      background: #ffffff;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      color: #333;
+      background: #fff;
+      font-family: 'Segoe UI', Tahoma, sans-serif;
       text-align: center;
+      color: #333;
+      padding: 2em;
     }
     h1 {
-      margin: 1.2em 0 0.5em;
-      font-size: 28px;
+      margin-bottom: 1.5em;
+      font-size: 2em;
     }
     .controls {
       display: flex;
@@ -24,61 +25,65 @@
       gap: 1em;
       margin-bottom: 1em;
     }
-    .control-item {
+    label {
+      font-size: 14px;
+      margin-right: 0.5em;
+    }
+    .checkbox-group, .color-group {
       display: flex;
       align-items: center;
       gap: 0.5em;
-      padding: 0.5em 0.8em;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      background: #f9f9f9;
+      margin: 0.5em;
+      padding: 0.4em 0.8em;
+      background: #f4f6f8;
+      border-radius: 10px;
     }
     canvas {
       display: block;
-      margin: 0 auto;
-      background: linear-gradient(to bottom, #ffffff, #f4f6f8 60%, #e8ecf0 100%);
+      margin: 2em auto;
+      background: #fff;
+      border-radius: 20px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
     }
-    button, label {
+    button, label input[type="file"] {
       display: inline-block;
-      margin: 0.7em 0.5em;
-      padding: 0.7em 1.3em;
+      padding: 0.7em 1.5em;
       background: #91bfff;
       color: white;
       border: none;
       border-radius: 8px;
-      font-size: 16px;
+      font-size: 15px;
       cursor: pointer;
       transition: background 0.3s;
     }
-    button:hover, label:hover {
+    button:hover {
       background: #7aaee8;
     }
     input[type="file"], input[type="color"] {
-      cursor: pointer;
+      margin-left: 0.5em;
     }
   </style>
 </head>
 <body>
 
-<h1>iPad 배경화면용 성적 그래프</h1>
+<h1>iPad Wallpaper용 성적 그래프</h1>
 
 <div class="controls">
-  <label for="uploadJson">📁 JSON 불러오기</label>
-  <input type="file" id="uploadJson" accept=".json" style="display:none" />
+  <label>📁 JSON 불러오기<input type="file" id="uploadJson" accept=".json"></label>
   <button onclick="downloadWallpaper()">💾 배경화면 저장</button>
 </div>
 
-<div id="datasetControls" class="controls"></div>
+<div id="options"></div>
 
 <canvas id="wallpaperChart" width="2732" height="2048"></canvas>
 
 <script>
-let chart;
-let chartData;
+let chart, chartData;
+let colorPalette = ['#8b73ff', '#ffa8dc', '#91bfff', '#ffb347', '#7ed6df'];
 
 function recreateCanvas() {
   const oldCanvas = document.getElementById('wallpaperChart');
-  if (oldCanvas) oldCanvas.remove();
+  oldCanvas.remove();
   const newCanvas = document.createElement('canvas');
   newCanvas.id = 'wallpaperChart';
   newCanvas.width = 2732;
@@ -87,85 +92,99 @@ function recreateCanvas() {
   return newCanvas.getContext('2d');
 }
 
-function createGradient(ctx, color) {
-  const gradient = ctx.createLinearGradient(0, 1700, 0, 2048);
-  gradient.addColorStop(0, color + '55');
-  gradient.addColorStop(1, color + '00');
-  return gradient;
-}
-
 function createFadeOutMask(ctx, width, height) {
   const gradient = ctx.createLinearGradient(0, 0, width, 0);
   gradient.addColorStop(0, 'rgba(255,255,255,1)');
-  gradient.addColorStop(0.03, 'rgba(255,255,255,0)');
-  gradient.addColorStop(0.97, 'rgba(255,255,255,0)');
+  gradient.addColorStop(0.05, 'rgba(255,255,255,0)');
+  gradient.addColorStop(0.95, 'rgba(255,255,255,0)');
   gradient.addColorStop(1, 'rgba(255,255,255,1)');
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);
 }
 
-function renderControls(datasets) {
-  const container = document.getElementById('datasetControls');
-  container.innerHTML = '';
-  datasets.forEach((ds, idx) => {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'control-item';
-
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.checked = true;
-    checkbox.onchange = () => {
-      chart.data.datasets[idx].hidden = !checkbox.checked;
-      chart.update();
-    };
-
-    const colorPicker = document.createElement('input');
-    colorPicker.type = 'color';
-    colorPicker.value = ds.borderColor;
-    colorPicker.oninput = () => {
-      chart.data.datasets[idx].borderColor = colorPicker.value;
-      chart.data.datasets[idx].backgroundColor = createGradient(chart.ctx, colorPicker.value);
-      chart.update();
-    };
-
-    const label = document.createElement('span');
-    label.textContent = ds.label;
-
-    wrapper.appendChild(checkbox);
-    wrapper.appendChild(label);
-    wrapper.appendChild(colorPicker);
-    container.appendChild(wrapper);
+function applyValueAdjustment(data) {
+  const minDiff = 0.1;
+  data.forEach(ds => {
+    const adjusted = ds.data.map((v, i, arr) => {
+      if (i === 0) return v;
+      const diff = Math.abs(v - arr[i-1]);
+      if (diff < minDiff) return v + (v >= 0 ? minDiff : -minDiff);
+      return v;
+    });
+    ds.data = adjusted;
   });
 }
 
-function loadChartFromData(data) {
+function loadChartFromData(rawData) {
+  chartData = JSON.parse(JSON.stringify(rawData));
+  applyValueAdjustment(chartData.datasets);
   const ctx = recreateCanvas();
-  chartData = data;
+  if (chart) chart.destroy();
 
-  const rawMin = Math.min(...data.datasets.flatMap(ds => ds.data));
-  const rawMax = Math.max(...data.datasets.flatMap(ds => ds.data));
-  const range = rawMax - rawMin;
-  const buffer = range < 10 ? 10 : range * 0.1;
+  const optionsDiv = document.getElementById('options');
+  optionsDiv.innerHTML = '';
 
-  const datasetsStyled = data.datasets.map((ds, idx) => {
-    const color = ['#8b73ff', '#ffa8dc', '#91bfff', '#ffb347', '#7ed6df'][idx % 5];
-    return {
-      ...ds,
-      borderColor: color,
-      borderWidth: 3,
-      fill: true,
-      backgroundColor: createGradient(ctx, color),
-      tension: 0.5,
-      pointRadius: 0,
-      pointHoverRadius: 0
+  chartData.datasets.forEach((ds, idx) => {
+    const color = colorPalette[idx % colorPalette.length];
+
+    const checkboxGroup = document.createElement('div');
+    checkboxGroup.className = 'checkbox-group';
+
+    const chk = document.createElement('input');
+    chk.type = 'checkbox';
+    chk.checked = true;
+    chk.dataset.index = idx;
+    chk.onchange = updateChart;
+
+    const colorInput = document.createElement('input');
+    colorInput.type = 'color';
+    colorInput.value = color;
+    colorInput.onchange = (e) => {
+      colorPalette[idx] = e.target.value;
+      updateChart();
     };
+
+    checkboxGroup.appendChild(chk);
+    const lbl = document.createElement('label');
+    lbl.textContent = ds.label;
+    checkboxGroup.appendChild(lbl);
+    checkboxGroup.appendChild(colorInput);
+
+    optionsDiv.appendChild(checkboxGroup);
   });
+
+  updateChart();
+}
+
+function updateChart() {
+  const ctx = document.getElementById('wallpaperChart').getContext('2d');
+  if (chart) chart.destroy();
+
+  const activeDatasets = chartData.datasets.map((ds, idx) => {
+    const visible = document.querySelector(`input[type="checkbox"][data-index="${idx}"]`).checked;
+    if (!visible) return null;
+
+    const gradient = ctx.createLinearGradient(0, 300, 0, 1800);
+    gradient.addColorStop(0, colorPalette[idx] + '33');
+    gradient.addColorStop(1, 'rgba(255,255,255,0)');
+
+    return {
+      label: ds.label,
+      data: ds.data,
+      borderColor: colorPalette[idx],
+      backgroundColor: gradient,
+      borderWidth: 3,
+      tension: 0.5,
+      fill: true,
+      pointRadius: 0
+    };
+  }).filter(Boolean);
 
   chart = new Chart(ctx, {
     type: 'line',
     data: {
-      labels: data.labels,
-      datasets: datasetsStyled
+      labels: chartData.labels,
+      datasets: activeDatasets
     },
     options: {
       responsive: false,
@@ -179,24 +198,22 @@ function loadChartFromData(data) {
         x: { display: false },
         y: {
           display: false,
-          min: rawMin - buffer,
-          max: rawMax + buffer
+          min: Math.min(...chartData.datasets.flatMap(ds => ds.data)) - 0.5,
+          max: Math.max(...chartData.datasets.flatMap(ds => ds.data)) + 0.5
         }
       },
-      layout: {
-        padding: { left: 0, right: 0, top: 1600, bottom: 0 }
-      },
-      elements: { line: { borderCapStyle: 'round' } }
+      elements: {
+        line: { borderCapStyle: 'round' }
+      }
     },
     plugins: [{
       id: 'fadeMask',
       afterDraw: (chart) => {
-        createFadeOutMask(chart.ctx, chart.width, chart.height);
+        const { ctx, width, height } = chart;
+        createFadeOutMask(ctx, width, height);
       }
     }]
   });
-
-  renderControls(datasetsStyled);
 }
 
 function downloadWallpaper() {
@@ -210,18 +227,9 @@ document.getElementById('uploadJson').addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = function (evt) {
-    const data = JSON.parse(evt.target.result);
-    localStorage.setItem('wallpaperData', JSON.stringify(data));
-    loadChartFromData(data);
-  };
+  reader.onload = (evt) => loadChartFromData(JSON.parse(evt.target.result));
   reader.readAsText(file);
 });
-
-window.onload = () => {
-  const savedData = localStorage.getItem('wallpaperData');
-  if (savedData) loadChartFromData(JSON.parse(savedData));
-};
 </script>
 
 </body>
