@@ -125,39 +125,40 @@
         datasets: datasetsStyled
       },
       options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { position: 'top' },
-          tooltip: {
-            callbacks: {
-              label: (ti) => {
-                const val = ti.raw;
-                const label = ti.dataset.label;
-                if (typeof val === "number") {
-                  return isZscore
-                    ? `${label}: ${(val * 20 + 100).toFixed(1)}점`
-                    : `${label}: ${val}점`;
-                } else {
-                  return `${label}: 데이터 오류`;
-                }
-              }
-            }
-          }
-        },
-        interaction: { mode: 'nearest', axis: 'x', intersect: false },
-        scales: {
-          y: {
-            min: yMin,
-            max: yMax,
-            title: { display: true, text: yLabel },
-            grid: { color: '#e0e0e0' }
-          },
-          x: {
-            title: { display: true, text: '시험 시기' }
+  responsive: false,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { position: 'top' },
+    tooltip: {
+      callbacks: {
+        label: (ti) => {
+          const val = ti.raw;
+          const label = ti.dataset.label;
+          if (typeof val === "number") {
+            return isZscore
+              ? `${label}: ${(val * 20 + 100).toFixed(1)}점`
+              : `${label}: ${val}점`;
+          } else {
+            return `${label}: 데이터 오류`;
           }
         }
       }
+    }
+  },
+  interaction: { mode: 'nearest', axis: 'x', intersect: false },
+  scales: {
+    y: {
+      min: yMin,
+      max: yMax,
+      title: { display: true, text: yLabel },
+      grid: { color: '#e0e0e0' }
+    },
+    x: {
+      title: { display: true, text: '시험 시기' }
+    }
+  }
+}
+
     });
   }
 
