@@ -2,8 +2,10 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>성적 데이터 편집기</title>
+  <title>고등학교 성적 시각화</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
     body {
       max-width: 900px;
@@ -13,150 +15,244 @@
       background: #f8f9fa;
       color: #222;
     }
-    h1 {
+    h1, h2 {
       text-align: center;
       margin-bottom: 1em;
     }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-bottom: 1em;
+    canvas {
       background: #fff;
-      border-radius: 8px;
-      overflow: hidden;
+      border-radius: 10px;
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
+      margin-bottom: 1.5em;
+      max-width: 100%;
     }
-    th, td {
-      border: 1px solid #ddd;
-      padding: 8px;
-      text-align: center;
-    }
-    th {
-      background: #f1f1f1;
-    }
-    input[type="text"], input[type="number"] {
-      width: 80px;
-      padding: 4px;
-      font-size: 14px;
-    }
-    button {
-      padding: 6px 12px;
-      margin: 4px;
-      font-size: 13px;
+    button, label {
+      display: inline-block;
+      margin: 0.4em;
+      padding: 0.5em 1em;
+      background: #4caf50;
+      color: white;
       border: none;
       border-radius: 6px;
+      font-size: 14px;
       cursor: pointer;
+      text-align: center;
     }
-    .add-btn { background: #4caf50; color: #fff; }
-    .del-btn { background: #e74c3c; color: #fff; }
-    .download-btn {
-      background: #3498db;
-      color: #fff;
-      display: block;
-      width: 100%;
-      margin-top: 1em;
+    button:hover, label:hover {
+      background: #43a047;
+    }
+    input[type="file"] {
+      display: none;
+    }
+    .button-group {
+      text-align: center;
+      margin-bottom: 1.5em;
+      flex-wrap: wrap;
+    }
+    @media (max-width: 600px) {
+      button, label {
+        width: 100%;
+        box-sizing: border-box;
+        margin: 0.3em 0;
+      }
     }
   </style>
 </head>
 <body>
 
-<h1>📋 성적 데이터 편집기</h1>
+<h1>고등학교 성적 변화</h1>
 
-<table id="dataTable">
-  <thead>
-    <tr>
-      <th>시험 시기</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><input type="text" value="고1 3월"></td>
-    </tr>
-  </tbody>
-</table>
-
-<div style="text-align:center">
-  <button class="add-btn" onclick="addLabel()">+ 시험 시기 추가</button>
+<div class="button-group">
+  <label for="uploadRaw">📁 원점수 JSON 업로드</label>
+  <input type="file" id="uploadRaw" accept=".json" />
+  <label for="uploadZ">📁 Z-score JSON 업로드</label>
+  <input type="file" id="uploadZ" accept=".json" />
 </div>
 
-<hr>
-
-<div id="subjectArea">
-  <h3>과목 & 점수 입력</h3>
-  <div id="subjects"></div>
-  <button class="add-btn" onclick="addSubject()">+ 과목 추가</button>
+<h2>📊 성적 원점수</h2>
+<div id="canvas-container-raw">
+  <canvas id="chart-raw" width="800" height="400"></canvas>
+</div>
+<div class="button-group">
+  <button onclick="saveChartImage('chart-raw')">📸 원점수 차트 저장</button>
+  <button onclick="clearChart('raw')">🗑️ 원점수 차트 삭제</button>
 </div>
 
-<button class="download-btn" onclick="downloadJSON()">📥 JSON 다운로드</button>
+<h2>📈 성적 표준점수 (Z-score)</h2>
+<div id="canvas-container-z">
+  <canvas id="chart-z" width="800" height="400"></canvas>
+</div>
+<div class="button-group">
+  <button onclick="saveChartImage('chart-z')">📸 Z-score 차트 저장</button>
+  <button onclick="clearChart('z')">🗑️ Z-score 차트 삭제</button>
+</div>
+
+<div class="button-group">
+  <button onclick="exportPDF()">📄 전체 차트 PDF 저장</button>
+  <button onclick="resetAll()">🔁 초기화 (기본 데이터로 복원)</button>
+</div>
 
 <script>
-  const dataTable = document.getElementById('dataTable').getElementsByTagName('tbody')[0];
-  const subjectsDiv = document.getElementById('subjects');
+  let chartInstances = { raw: null, z: null };
 
-  function addLabel() {
-    const row = dataTable.insertRow();
-    const cell = row.insertCell();
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.value = `시험 시기`;
-    cell.appendChild(input);
+  const canvasIds = {
+    raw: 'chart-raw',
+    z: 'chart-z',
+  };
+
+  const localKeys = {
+    raw: 'rawData',
+    z: 'zData',
+  };
+
+  const defaultJson = {
+    raw: 'test_score_raw_data.json',
+    z: 'test_z_score_data.json',
+  };
+
+  const chartLabels = {
+    raw: '점수',
+    z: '표준점수 (Z-score)',
+  };
+
+  const yRange = {
+    raw: [60, 100],
+    z: [80, 160],
+  };
+
+  function recreateCanvas(id, containerId) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = `<canvas id="${id}" width="800" height="400"></canvas>`;
+    return document.getElementById(id).getContext('2d');
   }
 
-  function addSubject() {
-    const container = document.createElement('div');
-    container.style.marginBottom = '0.5em';
+  async function createChart(type, chartData) {
+    const ctx = recreateCanvas(canvasIds[type], `canvas-container-${type}`);
+    const colors = ['#8b73ff', '#ffa8dc', '#91bfff', '#ffb347', '#7ed6df'];
 
-    const nameInput = document.createElement('input');
-    nameInput.type = 'text';
-    nameInput.placeholder = '과목명';
-    nameInput.style.marginRight = '0.5em';
+    const datasets = chartData.datasets.map((ds, i) => ({
+      ...ds,
+      borderColor: colors[i % colors.length],
+      backgroundColor: colors[i % colors.length] + '33',
+      borderWidth: 2,
+      tension: 0.4,
+      pointRadius: 3,
+      pointHoverRadius: 5,
+      fill: true
+    }));
 
-    const scores = [];
-    const labelRows = dataTable.rows;
-    for (let i = 0; i < labelRows.length; i++) {
-      const scoreInput = document.createElement('input');
-      scoreInput.type = 'number';
-      scoreInput.placeholder = '점수';
-      scoreInput.style.marginRight = '0.3em';
-      scores.push(scoreInput);
-    }
+    const [minY, maxY] = yRange[type];
 
-    const delBtn = document.createElement('button');
-    delBtn.textContent = '삭제';
-    delBtn.className = 'del-btn';
-    delBtn.onclick = () => subjectsDiv.removeChild(container);
-
-    container.appendChild(nameInput);
-    scores.forEach(score => container.appendChild(score));
-    container.appendChild(delBtn);
-
-    subjectsDiv.appendChild(container);
-  }
-
-  function downloadJSON() {
-    const labels = [];
-    for (let i = 0; i < dataTable.rows.length; i++) {
-      labels.push(dataTable.rows[i].cells[0].children[0].value);
-    }
-
-    const subjects = subjectsDiv.children;
-    const datasets = [];
-    for (let i = 0; i < subjects.length; i++) {
-      const inputs = subjects[i].getElementsByTagName('input');
-      const label = inputs[0].value;
-      const data = [];
-      for (let j = 1; j < inputs.length; j++) {
-        data.push(Number(inputs[j].value));
+    chartInstances[type] = new Chart(ctx, {
+      type: 'line',
+      data: { labels: chartData.labels, datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top' },
+          tooltip: {
+            callbacks: {
+              label: (ctx) =>
+                `${ctx.dataset.label}: ${
+                  type === 'z' ? ctx.raw.toFixed(2) : ctx.raw + "점"
+                }`
+            }
+          }
+        },
+        interaction: { mode: 'nearest', axis: 'x', intersect: false },
+        scales: {
+          y: {
+            min: minY,
+            max: maxY,
+            title: { display: true, text: chartLabels[type] },
+            grid: { color: '#e0e0e0' }
+          },
+          x: {
+            title: { display: true, text: '시험 시기' }
+          }
+        }
       }
-      datasets.push({ label, data });
-    }
+    });
+  }
 
-    const json = { labels, datasets };
-    const blob = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' });
+  async function loadChart(type) {
+    const stored = localStorage.getItem(localKeys[type]);
+    const json = stored
+      ? JSON.parse(stored)
+      : await fetch(defaultJson[type]).then(res => res.json());
+
+    if (chartInstances[type]) chartInstances[type].destroy();
+    await createChart(type, json);
+  }
+
+  async function loadAllCharts() {
+    await loadChart('raw');
+    await loadChart('z');
+  }
+
+  function saveChartImage(canvasId) {
+    const canvas = document.getElementById(canvasId);
     const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = 'custom_score_data.json';
+    link.href = canvas.toDataURL('image/png');
+    link.download = `${canvasId}.png`;
     link.click();
   }
+
+  function clearChart(type) {
+    localStorage.removeItem(localKeys[type]);
+    if (chartInstances[type]) {
+      chartInstances[type].destroy();
+      chartInstances[type] = null;
+    }
+    recreateCanvas(canvasIds[type], `canvas-container-${type}`);
+  }
+
+  function resetAll() {
+    localStorage.removeItem(localKeys.raw);
+    localStorage.removeItem(localKeys.z);
+    loadAllCharts();
+  }
+
+  async function exportPDF() {
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const img1 = document.getElementById(canvasIds.raw).toDataURL('image/png');
+    const img2 = document.getElementById(canvasIds.z).toDataURL('image/png');
+
+    pdf.text('고등학교 성적 변화 - 원점수', 10, 10);
+    pdf.addImage(img1, 'PNG', 10, 15, 180, 80);
+    pdf.text('고등학교 성적 변화 - Z-score', 10, 105);
+    pdf.addImage(img2, 'PNG', 10, 110, 180, 80);
+    pdf.save('성적_시각화.pdf');
+  }
+
+  // File upload handlers
+  document.getElementById('uploadRaw').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      const data = JSON.parse(evt.target.result);
+      localStorage.setItem(localKeys.raw, JSON.stringify(data));
+      await loadChart('raw');
+    };
+    reader.readAsText(file);
+  });
+
+  document.getElementById('uploadZ').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      const data = JSON.parse(evt.target.result);
+      localStorage.setItem(localKeys.z, JSON.stringify(data));
+      await loadChart('z');
+    };
+    reader.readAsText(file);
+  });
+
+  window.onload = loadAllCharts;
 </script>
 
 </body>
