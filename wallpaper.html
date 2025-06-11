@@ -13,34 +13,46 @@
       text-align: center;
       color: #333;
     }
+    h1 {
+      margin: 1em 0;
+    }
     canvas {
       display: block;
       margin: 0 auto;
       background: linear-gradient(to bottom, #ffffff, #f4f6f8 60%, #e8ecf0 100%);
     }
-    button, label {
-      display: inline-block;
+    .button-group, .color-controls {
       margin: 1em 0.5em;
-      padding: 0.7em 1.4em;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.5em;
+    }
+    button, label {
+      padding: 0.6em 1.2em;
       background: #91bfff;
       color: white;
       border: none;
       border-radius: 8px;
-      font-size: 16px;
+      font-size: 14px;
       cursor: pointer;
-      transition: background 0.3s;
     }
     button:hover, label:hover {
       background: #7aaee8;
     }
-    input[type="file"] {
-      display: none;
+    input[type="file"], input[type="color"] {
+      display: inline-block;
+    }
+    .toggle {
+      display: flex;
+      align-items: center;
+      gap: 0.4em;
     }
   </style>
 </head>
 <body>
 
-<h1>배경화면용 성적 그래프</h1>
+<h1>iPad 배경화면용 성적 그래프</h1>
 
 <div class="button-group">
   <label for="uploadJson">📁 JSON 불러오기</label>
@@ -48,10 +60,14 @@
   <button onclick="downloadWallpaper()">💾 배경화면 저장</button>
 </div>
 
+<div id="colorControls" class="color-controls"></div>
+
 <canvas id="wallpaperChart" width="2732" height="2048"></canvas>
 
 <script>
 let chart;
+let chartDataRaw;
+const colorPalette = ['#8b73ff', '#ffa8dc', '#91bfff', '#ffb347', '#7ed6df', '#f78fb3', '#c8e6c9'];
 
 function recreateCanvas() {
   const oldCanvas = document.getElementById('wallpaperChart');
@@ -64,96 +80,91 @@ function recreateCanvas() {
   return newCanvas.getContext('2d');
 }
 
-function createGradient(ctx, height) {
+function createGradient(ctx, height, color) {
   const gradient = ctx.createLinearGradient(0, 1600, 0, 2048);
-  gradient.addColorStop(0, 'rgba(200, 230, 255, 0.1)');
-  gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-  return gradient;
-}
-
-function createDatasetGradient(ctx, color) {
-  const gradient = ctx.createLinearGradient(0, 1600, 0, 2048);
-  gradient.addColorStop(0, color.replace('1)', '0.2)')); // 위쪽은 20% 불투명
-  gradient.addColorStop(1, color.replace('1)', '0)'));   // 아래는 투명
+  gradient.addColorStop(0, color + '22');
+  gradient.addColorStop(1, 'rgba(255,255,255,0)');
   return gradient;
 }
 
 function createFadeOutMask(ctx, width, height) {
   const gradient = ctx.createLinearGradient(0, 0, width, 0);
   gradient.addColorStop(0, 'rgba(255,255,255,1)');
-  gradient.addColorStop(0.05, 'rgba(255,255,255,0)');
-  gradient.addColorStop(0.95, 'rgba(255,255,255,0)');
+  gradient.addColorStop(0.03, 'rgba(255,255,255,0)');
+  gradient.addColorStop(0.97, 'rgba(255,255,255,0)');
   gradient.addColorStop(1, 'rgba(255,255,255,1)');
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);
 }
 
-function loadChartFromData(chartData) {
+function buildColorControls(datasets) {
+  const controlDiv = document.getElementById('colorControls');
+  controlDiv.innerHTML = '';
+  datasets.forEach((ds, idx) => {
+    const control = document.createElement('div');
+    control.className = 'toggle';
+    control.innerHTML = `
+      <input type="color" value="${ds.borderColor}" id="color${idx}">
+      <label>${ds.label}</label>
+      <input type="checkbox" id="toggle${idx}" checked>
+    `;
+    controlDiv.appendChild(control);
+
+    document.getElementById(`color${idx}`).addEventListener('input', () => updateChartColors());
+    document.getElementById(`toggle${idx}`).addEventListener('change', () => updateChartColors());
+  });
+}
+
+function loadChartFromData(data) {
+  chartDataRaw = data;
   const ctx = recreateCanvas();
   if (chart) chart.destroy();
 
-  const colorPalette = [
-    'rgba(139, 115, 255, 1)',
-    'rgba(255, 168, 220, 1)',
-    'rgba(145, 191, 255, 1)',
-    'rgba(255, 179, 71, 1)',
-    'rgba(126, 214, 223, 1)'
-  ];
+  const values = data.datasets.flatMap(ds => ds.data);
+  const minVal = Math.min(...values);
+  const maxVal = Math.max(...values);
+  const buffer = Math.max(5, (maxVal - minVal) < 10 ? 10 : 0);
 
-  const datasetsStyled = chartData.datasets.map((ds, idx) => ({
-    ...ds,
-    borderColor: colorPalette[idx % colorPalette.length],
-    backgroundColor: createDatasetGradient(ctx, colorPalette[idx % colorPalette.length]),
-    borderWidth: 3,
-    fill: true,
-    tension: 0.5,
-    pointRadius: 0,
-    pointHoverRadius: 0
-  }));
+  data.datasets.forEach((ds, i) => {
+    ds.borderColor = colorPalette[i % colorPalette.length];
+    ds.fill = false;
+    ds.borderWidth = 3;
+    ds.tension = 0.4;
+    ds.pointRadius = 0;
+  });
 
-  const backgroundGradient = createGradient(ctx, 2048);
+  buildColorControls(data.datasets);
 
   chart = new Chart(ctx, {
     type: 'line',
     data: {
-      labels: chartData.labels,
-      datasets: datasetsStyled
+      labels: data.labels,
+      datasets: data.datasets
     },
     options: {
       responsive: false,
       maintainAspectRatio: false,
       animation: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: { enabled: false }
-      },
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
       scales: {
         x: { display: false },
-        y: {
-          display: false,
-          min: Math.min(...chartData.datasets.flatMap(ds => ds.data)) - 5,
-          max: Math.max(...chartData.datasets.flatMap(ds => ds.data)) + 5
-        }
+        y: { display: false, min: minVal - buffer, max: maxVal + buffer }
       },
-      layout: {
-        padding: {
-          left: 0,
-          right: 0,
-          top: 1500,
-          bottom: 0
-        }
-      },
-      elements: {
-        line: { borderCapStyle: 'round' }
-      }
+      layout: { padding: { top: 1500 } },
+      elements: { line: { borderCapStyle: 'round' } }
     },
     plugins: [{
-      id: 'customBackground',
+      id: 'customBG',
       beforeDraw: (chart) => {
-        const { ctx, width, height } = chart;
+        const { ctx, chartArea } = chart;
         ctx.save();
-        ctx.fillStyle = backgroundGradient;
-        ctx.fillRect(0, 0, width, height);
+        chart.data.datasets.forEach((ds, i) => {
+          if (document.getElementById(`toggle${i}`).checked) {
+            const grad = createGradient(ctx, 2048, ds.borderColor);
+            ctx.fillStyle = grad;
+            ctx.fillRect(chartArea.left, chartArea.top, chartArea.right - chartArea.left, chartArea.bottom);
+          }
+        });
         ctx.restore();
       },
       afterDraw: (chart) => {
@@ -162,6 +173,16 @@ function loadChartFromData(chartData) {
       }
     }]
   });
+}
+
+function updateChartColors() {
+  chartDataRaw.datasets.forEach((ds, i) => {
+    const color = document.getElementById(`color${i}`).value;
+    ds.borderColor = color;
+    chart.data.datasets[i].hidden = !document.getElementById(`toggle${i}`).checked;
+    chart.data.datasets[i].borderColor = color;
+  });
+  chart.update();
 }
 
 function downloadWallpaper() {
