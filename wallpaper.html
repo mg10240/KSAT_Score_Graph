@@ -71,13 +71,19 @@ function createGradient(ctx, height) {
   return gradient;
 }
 
+function createDatasetGradient(ctx, color) {
+  const gradient = ctx.createLinearGradient(0, 1600, 0, 2048);
+  gradient.addColorStop(0, color.replace('1)', '0.2)')); // 위쪽은 20% 불투명
+  gradient.addColorStop(1, color.replace('1)', '0)'));   // 아래는 투명
+  return gradient;
+}
+
 function createFadeOutMask(ctx, width, height) {
   const gradient = ctx.createLinearGradient(0, 0, width, 0);
   gradient.addColorStop(0, 'rgba(255,255,255,1)');
   gradient.addColorStop(0.05, 'rgba(255,255,255,0)');
   gradient.addColorStop(0.95, 'rgba(255,255,255,0)');
   gradient.addColorStop(1, 'rgba(255,255,255,1)');
-  
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);
 }
@@ -86,19 +92,26 @@ function loadChartFromData(chartData) {
   const ctx = recreateCanvas();
   if (chart) chart.destroy();
 
-  const colorPalette = ['#8b73ff', '#ffa8dc', '#91bfff', '#ffb347', '#7ed6df'];
+  const colorPalette = [
+    'rgba(139, 115, 255, 1)',
+    'rgba(255, 168, 220, 1)',
+    'rgba(145, 191, 255, 1)',
+    'rgba(255, 179, 71, 1)',
+    'rgba(126, 214, 223, 1)'
+  ];
 
   const datasetsStyled = chartData.datasets.map((ds, idx) => ({
     ...ds,
     borderColor: colorPalette[idx % colorPalette.length],
+    backgroundColor: createDatasetGradient(ctx, colorPalette[idx % colorPalette.length]),
     borderWidth: 3,
-    fill: false,
+    fill: true,
     tension: 0.5,
     pointRadius: 0,
     pointHoverRadius: 0
   }));
 
-  const gradient = createGradient(ctx, 2048);
+  const backgroundGradient = createGradient(ctx, 2048);
 
   chart = new Chart(ctx, {
     type: 'line',
@@ -139,7 +152,7 @@ function loadChartFromData(chartData) {
       beforeDraw: (chart) => {
         const { ctx, width, height } = chart;
         ctx.save();
-        ctx.fillStyle = gradient;
+        ctx.fillStyle = backgroundGradient;
         ctx.fillRect(0, 0, width, height);
         ctx.restore();
       },
