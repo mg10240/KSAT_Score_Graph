@@ -2,257 +2,57 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>고등학교 성적 시각화</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <title>성적 JSON 데이터 입력기</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
-    body {
-      max-width: 900px;
-      margin: 2em auto;
-      padding: 0 1em;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: #f8f9fa;
-      color: #222;
-    }
-    h1, h2 {
-      text-align: center;
-      margin-bottom: 1em;
-    }
-    canvas {
-      background: #fff;
-      border-radius: 10px;
-      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
-      margin-bottom: 1.5em;
-      max-width: 100%;
-    }
-    button, label {
-      display: inline-block;
-      margin: 0.4em;
-      padding: 0.5em 1em;
-      background: #4caf50;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      font-size: 14px;
-      cursor: pointer;
-      text-align: center;
-    }
-    button:hover, label:hover {
-      background: #43a047;
-    }
-    input[type="file"] {
-      display: none;
-    }
-    .button-group {
-      text-align: center;
-      margin-bottom: 1.5em;
-      flex-wrap: wrap;
-    }
-    @media (max-width: 600px) {
-      button, label {
-        width: 100%;
-        box-sizing: border-box;
-        margin: 0.3em 0;
-      }
-    }
+    body { max-width: 800px; margin: 2em auto; font-family: sans-serif; }
+    input, textarea, button { padding: 0.5em; margin: 0.5em 0; width: 100%; box-sizing: border-box; }
+    label { font-weight: bold; margin-top: 1em; display: block; }
+    textarea { height: 100px; }
   </style>
 </head>
 <body>
 
-<h1>고등학교 성적 변화</h1>
+<h1>📋 성적 JSON 데이터 입력기</h1>
 
-<div class="button-group">
-  <label for="uploadRaw">📁 원점수 JSON 업로드</label>
-  <input type="file" id="uploadRaw" accept=".json" />
-  <label for="uploadZ">📁 Z-score JSON 업로드</label>
-  <input type="file" id="uploadZ" accept=".json" />
-</div>
+<label>시험 시기 (쉼표로 구분)</label>
+<input type="text" id="labels" placeholder="예: 고1 3월, 고1 6월, 고1 9월, 고1 10월" />
 
-<h2>📊 성적 원점수</h2>
-<div id="canvas-container-raw">
-  <canvas id="chart-raw" width="800" height="400"></canvas>
-</div>
-<div class="button-group">
-  <button onclick="saveChartImage('chart-raw')">📸 원점수 차트 저장</button>
-  <button onclick="clearChart('raw')">🗑️ 원점수 차트 삭제</button>
-</div>
+<label>과목별 데이터 (과목명: 점수1, 점수2, ...)</label>
+<textarea id="datasets" placeholder="예: 국어: 85, 88, 90, 92&#10;수학: 80, 84, 89, 95"></textarea>
 
-<h2>📈 성적 표준점수 (Z-score)</h2>
-<div id="canvas-container-z">
-  <canvas id="chart-z" width="800" height="400"></canvas>
-</div>
-<div class="button-group">
-  <button onclick="saveChartImage('chart-z')">📸 Z-score 차트 저장</button>
-  <button onclick="clearChart('z')">🗑️ Z-score 차트 삭제</button>
-</div>
+<button onclick="generateJSON()">📦 JSON 만들기</button>
 
-<div class="button-group">
-  <button onclick="exportPDF()">📄 전체 차트 PDF 저장</button>
-  <button onclick="resetAll()">🔁 초기화 (기본 데이터로 복원)</button>
-</div>
+<h2>결과 JSON</h2>
+<textarea id="result" readonly></textarea>
+
+<button onclick="downloadJSON()">💾 JSON 다운로드</button>
 
 <script>
-  let chartInstances = { raw: null, z: null };
-
-  const canvasIds = {
-    raw: 'chart-raw',
-    z: 'chart-z',
-  };
-
-  const localKeys = {
-    raw: 'rawData',
-    z: 'zData',
-  };
-
-  const defaultJson = {
-    raw: 'test_score_raw_data.json',
-    z: 'test_z_score_data.json',
-  };
-
-  const chartLabels = {
-    raw: '점수',
-    z: '표준점수 (Z-score)',
-  };
-
-  const yRange = {
-    raw: [60, 100],
-    z: [80, 160],
-  };
-
-  function recreateCanvas(id, containerId) {
-    const container = document.getElementById(containerId);
-    container.innerHTML = `<canvas id="${id}" width="800" height="400"></canvas>`;
-    return document.getElementById(id).getContext('2d');
-  }
-
-  async function createChart(type, chartData) {
-    const ctx = recreateCanvas(canvasIds[type], `canvas-container-${type}`);
-    const colors = ['#8b73ff', '#ffa8dc', '#91bfff', '#ffb347', '#7ed6df'];
-
-    const datasets = chartData.datasets.map((ds, i) => ({
-      ...ds,
-      borderColor: colors[i % colors.length],
-      backgroundColor: colors[i % colors.length] + '33',
-      borderWidth: 2,
-      tension: 0.4,
-      pointRadius: 3,
-      pointHoverRadius: 5,
-      fill: true
-    }));
-
-    const [minY, maxY] = yRange[type];
-
-    chartInstances[type] = new Chart(ctx, {
-      type: 'line',
-      data: { labels: chartData.labels, datasets },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { position: 'top' },
-          tooltip: {
-            callbacks: {
-              label: (ctx) =>
-                `${ctx.dataset.label}: ${
-                  type === 'z' ? ctx.raw.toFixed(2) : ctx.raw + "점"
-                }`
-            }
-          }
-        },
-        interaction: { mode: 'nearest', axis: 'x', intersect: false },
-        scales: {
-          y: {
-            min: minY,
-            max: maxY,
-            title: { display: true, text: chartLabels[type] },
-            grid: { color: '#e0e0e0' }
-          },
-          x: {
-            title: { display: true, text: '시험 시기' }
-          }
-        }
-      }
-    });
-  }
-
-  async function loadChart(type) {
-    const stored = localStorage.getItem(localKeys[type]);
-    const json = stored
-      ? JSON.parse(stored)
-      : await fetch(defaultJson[type]).then(res => res.json());
-
-    if (chartInstances[type]) chartInstances[type].destroy();
-    await createChart(type, json);
-  }
-
-  async function loadAllCharts() {
-    await loadChart('raw');
-    await loadChart('z');
-  }
-
-  function saveChartImage(canvasId) {
-    const canvas = document.getElementById(canvasId);
-    const link = document.createElement('a');
-    link.href = canvas.toDataURL('image/png');
-    link.download = `${canvasId}.png`;
-    link.click();
-  }
-
-  function clearChart(type) {
-    localStorage.removeItem(localKeys[type]);
-    if (chartInstances[type]) {
-      chartInstances[type].destroy();
-      chartInstances[type] = null;
-    }
-    recreateCanvas(canvasIds[type], `canvas-container-${type}`);
-  }
-
-  function resetAll() {
-    localStorage.removeItem(localKeys.raw);
-    localStorage.removeItem(localKeys.z);
-    loadAllCharts();
-  }
-
-  async function exportPDF() {
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    const img1 = document.getElementById(canvasIds.raw).toDataURL('image/png');
-    const img2 = document.getElementById(canvasIds.z).toDataURL('image/png');
-
-    pdf.text('고등학교 성적 변화 - 원점수', 10, 10);
-    pdf.addImage(img1, 'PNG', 10, 15, 180, 80);
-    pdf.text('고등학교 성적 변화 - Z-score', 10, 105);
-    pdf.addImage(img2, 'PNG', 10, 110, 180, 80);
-    pdf.save('성적_시각화.pdf');
-  }
-
-  // File upload handlers
-  document.getElementById('uploadRaw').addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      const data = JSON.parse(evt.target.result);
-      localStorage.setItem(localKeys.raw, JSON.stringify(data));
-      await loadChart('raw');
-    };
-    reader.readAsText(file);
+function generateJSON() {
+  const labels = document.getElementById('labels').value.split(',').map(s => s.trim());
+  const lines = document.getElementById('datasets').value.trim().split('\n');
+  const datasets = lines.map(line => {
+    const [label, dataStr] = line.split(':');
+    const data = dataStr.split(',').map(s => parseFloat(s.trim()));
+    return { label: label.trim(), data };
   });
+  const jsonData = { labels, datasets };
+  document.getElementById('result').value = JSON.stringify(jsonData, null, 2);
+}
 
-  document.getElementById('uploadZ').addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      const data = JSON.parse(evt.target.result);
-      localStorage.setItem(localKeys.z, JSON.stringify(data));
-      await loadChart('z');
-    };
-    reader.readAsText(file);
-  });
-
-  window.onload = loadAllCharts;
+function downloadJSON() {
+  const dataStr = document.getElementById('result').value;
+  if (!dataStr) {
+    alert('먼저 JSON을 생성하세요!');
+    return;
+  }
+  const blob = new Blob([dataStr], { type: 'application/json' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'score_data.json';
+  link.click();
+}
 </script>
 
 </body>
