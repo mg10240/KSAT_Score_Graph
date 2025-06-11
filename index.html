@@ -8,12 +8,56 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
     body {
-      max-width: 900px;
-      margin: 2em auto;
-      padding: 0 1em;
+      margin: 0;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       background: #f8f9fa;
       color: #222;
+    }
+    /* 사이드바 스타일 */
+    #sidebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 200px;
+      height: 100%;
+      background: #ffffff;
+      border-right: 1px solid #ddd;
+      box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+      padding: 1.5em 1em;
+      box-sizing: border-box;
+      z-index: 999;
+    }
+    #sidebar h3 {
+      margin-top: 0;
+      font-size: 18px;
+      color: #444;
+      margin-bottom: 1em;
+    }
+    #sidebar ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    #sidebar li {
+      margin: 0.7em 0;
+    }
+    #sidebar a {
+      text-decoration: none;
+      color: #333;
+      font-size: 16px;
+      display: block;
+      padding: 0.4em 0.6em;
+      border-radius: 6px;
+      transition: background 0.2s;
+    }
+    #sidebar a:hover {
+      background: #f0f0f5;
+    }
+    /* 본문 */
+    #main-content {
+      margin-left: 220px;
+      padding: 2em 1.5em;
+      max-width: 900px;
     }
     h1, h2 {
       text-align: center;
@@ -49,7 +93,17 @@
       margin-bottom: 1.5em;
       flex-wrap: wrap;
     }
-    @media (max-width: 600px) {
+    @media (max-width: 700px) {
+      #sidebar {
+        width: 100%;
+        height: auto;
+        position: relative;
+        border-right: none;
+        box-shadow: none;
+      }
+      #main-content {
+        margin-left: 0;
+      }
       button, label {
         width: 100%;
         box-sizing: border-box;
@@ -58,7 +112,19 @@
     }
   </style>
 </head>
+
 <body>
+
+<div id="sidebar">
+  <h3>📖 메뉴</h3>
+  <ul>
+    <li><a href="index.html">📊 성적 그래프</a></li>
+    <li><a href="sub.html">📑 데이터 입력</a></li>
+    <li><a href="wallpaper.html">🖼️ 배경화면 만들기</a></li>
+  </ul>
+</div>
+
+<div id="main-content">
 
 <h1>고등학교 성적 변화</h1>
 
@@ -92,6 +158,8 @@
   <button onclick="resetAll()">🔁 초기화 (기본 데이터로 복원)</button>
 </div>
 
+</div> <!-- #main-content 닫기 -->
+
 <script>
   let chartRaw, chartZ;
 
@@ -103,7 +171,6 @@
 
   async function loadChartFromData(chartData, canvasId, yLabel, isZscore = false) {
     const ctx = recreateCanvas(canvasId, `canvas-container-${canvasId.includes('z') ? 'z' : 'raw'}`);
-
     const colorPalette = ['#8b73ff', '#ffa8dc', '#91bfff', '#ffb347', '#7ed6df'];
     const datasetsStyled = chartData.datasets.map((ds, idx) => ({
       ...ds,
@@ -123,7 +190,7 @@
         datasets: datasetsStyled
       },
       options: {
-        responsive: false, // 반응형 꺼버림
+        responsive: false,
         maintainAspectRatio: false,
         plugins: {
           legend: { position: 'top' },
@@ -176,7 +243,6 @@
     const pdf = new jsPDF('p', 'mm', 'a4');
     const canvas1 = document.getElementById('chart-score-raw');
     const canvas2 = document.getElementById('chart-score-z');
-
     const img1 = canvas1.toDataURL('image/png');
     const img2 = canvas2.toDataURL('image/png');
 
@@ -184,14 +250,12 @@
     pdf.addImage(img1, 'PNG', 10, 15, 180, 80);
     pdf.text('고등학교 성적 변화 - Z-score', 10, 105);
     pdf.addImage(img2, 'PNG', 10, 110, 180, 80);
-
     pdf.save('성적_시각화.pdf');
   }
 
   async function loadChartsFromStorage() {
     const rawData = localStorage.getItem('rawData');
     const zData = localStorage.getItem('zData');
-
     if (chartRaw) chartRaw.destroy();
     chartRaw = rawData
       ? await loadChartFromData(JSON.parse(rawData), 'chart-score-raw', '점수', false)
@@ -206,18 +270,12 @@
   function deleteChart(type) {
     if (type === 'raw') {
       localStorage.removeItem('rawData');
-      if (chartRaw) {
-        chartRaw.destroy();
-        chartRaw = null;
-      }
+      if (chartRaw) { chartRaw.destroy(); chartRaw = null; }
       recreateCanvas('chart-score-raw', 'canvas-container-raw');
     }
     if (type === 'z') {
       localStorage.removeItem('zData');
-      if (chartZ) {
-        chartZ.destroy();
-        chartZ = null;
-      }
+      if (chartZ) { chartZ.destroy(); chartZ = null; }
       recreateCanvas('chart-score-z', 'canvas-container-z');
     }
   }
@@ -234,7 +292,7 @@
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = async function (evt) {
+    reader.onload = async (evt) => {
       const data = JSON.parse(evt.target.result);
       localStorage.setItem('rawData', JSON.stringify(data));
       if (chartRaw) chartRaw.destroy();
@@ -247,7 +305,7 @@
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = async function (evt) {
+    reader.onload = async (evt) => {
       const data = JSON.parse(evt.target.result);
       localStorage.setItem('zData', JSON.stringify(data));
       if (chartZ) chartZ.destroy();
