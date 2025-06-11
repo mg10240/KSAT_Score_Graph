@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>iPad 성적 그래프 Wallpaper</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body {
@@ -15,34 +15,39 @@
       padding: 2em;
     }
     h1 {
-      margin-bottom: 1.2em;
+      margin-bottom: 1.5em;
       font-size: 2em;
     }
     .controls {
       display: flex;
       flex-wrap: wrap;
       justify-content: center;
-      gap: 0.7em;
+      gap: 1em;
       margin-bottom: 1em;
+    }
+    label {
+      font-size: 14px;
+      margin-right: 0.5em;
     }
     .checkbox-group {
       display: flex;
       align-items: center;
       gap: 0.5em;
+      margin: 0.5em;
+      padding: 0.4em 0.8em;
       background: #f4f6f8;
-      padding: 0.5em 1em;
       border-radius: 10px;
     }
     canvas {
       display: block;
-      margin: 1.5em auto;
+      margin: 2em auto;
       background: #fff;
       border-radius: 20px;
-      box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+      box-shadow: 0 5px 15px rgba(0,0,0,0.05);
     }
     button, label input[type="file"] {
       display: inline-block;
-      padding: 0.6em 1.4em;
+      padding: 0.7em 1.5em;
       background: #91bfff;
       color: white;
       border: none;
@@ -54,7 +59,7 @@
     button:hover {
       background: #7aaee8;
     }
-    input[type="file"], input[type="color"], input[type="checkbox"] {
+    input[type="file"], input[type="color"] {
       margin-left: 0.5em;
     }
   </style>
@@ -74,7 +79,7 @@
 
 <script>
 let chart, chartData;
-let colorPalette = ['#A5C8FF', '#FFCFD2', '#C0F2DC', '#FFE7A3', '#D8C4FF']; // 파스텔톤
+let colorPalette = ['#cdb4db', '#ffc8dd', '#bde0fe', '#ffafcc', '#a2d2ff']; // 파스텔톤
 
 function recreateCanvas() {
   const oldCanvas = document.getElementById('wallpaperChart');
@@ -98,7 +103,7 @@ function createFadeOutMask(ctx, width, height) {
 }
 
 function applyValueAdjustment(data) {
-  const minDiff = 0.5;
+  const minDiff = 0.1;
   data.forEach(ds => {
     const adjusted = ds.data.map((v, i, arr) => {
       if (i === 0) return v;
@@ -129,33 +134,35 @@ function loadChartFromData(rawData) {
     chk.type = 'checkbox';
     chk.checked = true;
     chk.dataset.index = idx;
-    chk.className = 'dataset-toggle';
     chk.onchange = updateChart;
+
+    const fillChk = document.createElement('input');
+    fillChk.type = 'checkbox';
+    fillChk.checked = true;
+    fillChk.dataset.index = idx;
+    fillChk.className = 'fill-only';
+    fillChk.onchange = updateChart;
+
+    const colorInput = document.createElement('input');
+    colorInput.type = 'color';
+    colorInput.value = color;
+    colorInput.onchange = (e) => {
+      colorPalette[idx] = e.target.value;
+      updateChart();
+    };
 
     const lbl = document.createElement('label');
     lbl.textContent = ds.label;
 
     group.appendChild(chk);
+    group.appendChild(document.createTextNode('라인'));
+    group.appendChild(fillChk);
+    group.appendChild(document.createTextNode('채우기'));
     group.appendChild(lbl);
+    group.appendChild(colorInput);
 
     optionsDiv.appendChild(group);
   });
-
-  // 그래프 라인 표시/숨기기 토글
-  const lineToggleGroup = document.createElement('div');
-  lineToggleGroup.className = 'checkbox-group';
-  const lineToggle = document.createElement('input');
-  lineToggle.type = 'checkbox';
-  lineToggle.checked = true;
-  lineToggle.id = 'lineToggle';
-  lineToggle.onchange = updateChart;
-
-  const lineLabel = document.createElement('label');
-  lineLabel.textContent = '그래프 라인 표시';
-
-  lineToggleGroup.appendChild(lineToggle);
-  lineToggleGroup.appendChild(lineLabel);
-  optionsDiv.appendChild(lineToggleGroup);
 
   updateChart();
 }
@@ -164,26 +171,24 @@ function updateChart() {
   const ctx = document.getElementById('wallpaperChart').getContext('2d');
   if (chart) chart.destroy();
 
-  const showLine = document.getElementById('lineToggle')?.checked ?? true;
-
   const activeDatasets = chartData.datasets.map((ds, idx) => {
-    const visible = document.querySelector(`input.dataset-toggle[data-index="${idx}"]`).checked;
-    if (!visible) return null;
+    const lineVisible = document.querySelector(`input[type="checkbox"][data-index="${idx}"]`).checked;
+    const fillVisible = document.querySelector(`input.fill-only[data-index="${idx}"]`).checked;
+    if (!lineVisible && !fillVisible) return null;
 
-    const gradient = ctx.createLinearGradient(0, 1740, 0, 2048); // 하단 14% 정도만
-    gradient.addColorStop(0, colorPalette[idx] + '66'); // 40% 투명
+    const gradient = ctx.createLinearGradient(0, 1700, 0, 2048); // 하단 1/6영역만
+    gradient.addColorStop(0, colorPalette[idx] + '55');
     gradient.addColorStop(1, 'rgba(255,255,255,0)');
 
     return {
       label: ds.label,
       data: ds.data,
-      borderColor: colorPalette[idx],
-      backgroundColor: gradient,
+      borderColor: lineVisible ? colorPalette[idx] : 'rgba(0,0,0,0)',
+      backgroundColor: fillVisible ? gradient : 'rgba(0,0,0,0)',
       borderWidth: 3,
       tension: 0.5,
-      fill: true,
-      pointRadius: 0,
-      showLine: showLine
+      fill: fillVisible,
+      pointRadius: 0
     };
   }).filter(Boolean);
 
@@ -211,6 +216,12 @@ function updateChart() {
       },
       elements: {
         line: { borderCapStyle: 'round' }
+      },
+      layout: {
+        padding: {
+          top: 1600, // 하단 1/6만 차지
+          bottom: 0
+        }
       }
     },
     plugins: [{
