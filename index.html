@@ -131,12 +131,21 @@
         plugins: {
           legend: { position: 'top' },
           tooltip: {
-            callbacks: {
-              label: (ti) =>
-                `${ti.dataset.label}: ${
-                  isZscore ? ti.raw.toFixed(2) : ti.raw + "점"
-                }`
-            }
+  callbacks: {
+    label: (ti) => {
+      const val = ti.raw;
+      const label = ti.dataset.label;
+      if (typeof val === "number") {
+        return isZscore
+          ? `${label}: ${(val * 20 + 100).toFixed(1)}점`
+          : `${label}: ${val}점`;
+      } else {
+        return `${label}: 데이터 오류`;
+      }
+    }
+  }
+}
+
           }
         },
         interaction: { mode: 'nearest', axis: 'x', intersect: false },
