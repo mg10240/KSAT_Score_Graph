@@ -119,19 +119,16 @@ function calculateYRange(datasets) {
   const allValues = datasets.flatMap(ds => ds.data);
   let min = Math.min(...allValues);
   let max = Math.max(...allValues);
-  const margin = 0.3;
+  const margin = (max - min) * 0.1 || 10;
   min -= margin;
   max += margin;
-  // -1.0 ~ 1.0 클램프
-  min = Math.max(min, -1.0);
-  max = Math.min(max, 1.0);
-  // min == max 방지
   if (min === max) {
-    min -= 0.5;
-    max += 0.5;
+    min -= 5;
+    max += 5;
   }
   return { min, max };
 }
+
 
 function loadChartFromData(rawData) {
   chartData = JSON.parse(JSON.stringify(rawData));
