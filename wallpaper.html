@@ -29,7 +29,7 @@
       font-size: 14px;
       margin-right: 0.5em;
     }
-    .checkbox-group, .color-group {
+    .checkbox-group {
       display: flex;
       align-items: center;
       gap: 0.5em;
@@ -103,7 +103,7 @@ function createFadeOutMask(ctx, width, height) {
 }
 
 function applyValueAdjustment(data) {
-  const minDiff = 0.1;
+  const minDiff = 1;  // 최소 변화폭 설정
   data.forEach(ds => {
     const adjusted = ds.data.map((v, i, arr) => {
       if (i === 0) return v;
@@ -119,9 +119,12 @@ function calculateYRange(datasets) {
   const allValues = datasets.flatMap(ds => ds.data);
   let min = Math.min(...allValues);
   let max = Math.max(...allValues);
-  const margin = (max - min) * 0.1 || 10;
+  const range = max - min;
+  const margin = range * 0.15 || 10;
   min -= margin;
   max += margin;
+  min = Math.floor(min / 10) * 10;
+  max = Math.ceil(max / 10) * 10;
   if (min === max) {
     min -= 5;
     max += 5;
@@ -129,19 +132,16 @@ function calculateYRange(datasets) {
   return { min, max };
 }
 
-
 function loadChartFromData(rawData) {
   chartData = JSON.parse(JSON.stringify(rawData));
   applyValueAdjustment(chartData.datasets);
   const ctx = recreateCanvas();
   if (chart) chart.destroy();
-
   const optionsDiv = document.getElementById('options');
   optionsDiv.innerHTML = '';
 
   chartData.datasets.forEach((ds, idx) => {
     const color = colorPalette[idx % colorPalette.length];
-
     const checkboxGroup = document.createElement('div');
     checkboxGroup.className = 'checkbox-group';
 
@@ -159,12 +159,12 @@ function loadChartFromData(rawData) {
       updateChart();
     };
 
-    checkboxGroup.appendChild(chk);
     const lbl = document.createElement('label');
     lbl.textContent = ds.label;
+
+    checkboxGroup.appendChild(chk);
     checkboxGroup.appendChild(lbl);
     checkboxGroup.appendChild(colorInput);
-
     optionsDiv.appendChild(checkboxGroup);
   });
 
@@ -178,24 +178,22 @@ function updateChart() {
   const activeDatasets = chartData.datasets.map((ds, idx) => {
     const visible = document.querySelector(`input[type="checkbox"][data-index="${idx}"]`).checked;
     if (!visible) return null;
-
     const gradient = ctx.createLinearGradient(0, 300, 0, 1800);
     gradient.addColorStop(0, colorPalette[idx] + '33');
     gradient.addColorStop(1, 'rgba(255,255,255,0)');
-
     return {
       label: ds.label,
       data: ds.data,
       borderColor: colorPalette[idx],
       backgroundColor: gradient,
-      borderWidth: 3,
-      tension: 0.5,
+      borderWidth: 4,
+      tension: 0.4,
       fill: true,
       pointRadius: 0
     };
   }).filter(Boolean);
 
-  const yRange = calculateYRange(activeDatasets);
+  const { min, max } = calculateYRange(chartData.datasets);
 
   chart = new Chart(ctx, {
     type: 'line',
@@ -215,8 +213,8 @@ function updateChart() {
         x: { display: false },
         y: {
           display: false,
-          min: yRange.min,
-          max: yRange.max
+          min: min,
+          max: max
         }
       },
       elements: {
