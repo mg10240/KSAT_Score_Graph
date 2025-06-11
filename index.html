@@ -65,20 +65,23 @@
 <div class="button-group">
   <label for="uploadRaw">📁 원점수 JSON 업로드</label>
   <input type="file" id="uploadRaw" accept=".json" />
-
   <label for="uploadZ">📁 Z-score JSON 업로드</label>
   <input type="file" id="uploadZ" accept=".json" />
 </div>
 
 <h2>📊 성적 원점수</h2>
-<canvas id="chart-score-raw" width="800" height="400"></canvas>
+<div id="canvas-container-raw">
+  <canvas id="chart-score-raw" width="800" height="400"></canvas>
+</div>
 <div class="button-group">
   <button onclick="downloadChart('chart-score-raw')">📸 원점수 차트 저장</button>
   <button onclick="deleteChart('raw')">🗑️ 원점수 차트 삭제</button>
 </div>
 
 <h2>📈 성적 표준점수 (Z-score)</h2>
-<canvas id="chart-score-z" width="800" height="400"></canvas>
+<div id="canvas-container-z">
+  <canvas id="chart-score-z" width="800" height="400"></canvas>
+</div>
 <div class="button-group">
   <button onclick="downloadChart('chart-score-z')">📸 Z-score 차트 저장</button>
   <button onclick="deleteChart('z')">🗑️ Z-score 차트 삭제</button>
@@ -92,8 +95,14 @@
 <script>
   let chartRaw, chartZ;
 
+  function recreateCanvas(id, containerId) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = `<canvas id="${id}" width="800" height="400"></canvas>`;
+    return document.getElementById(id).getContext('2d');
+  }
+
   async function loadChartFromData(chartData, canvasId, yLabel, isZscore = false) {
-    const ctx = document.getElementById(canvasId).getContext('2d');
+    const ctx = recreateCanvas(canvasId, `canvas-container-${canvasId.includes('z') ? 'z' : 'raw'}`);
 
     const colorPalette = ['#8b73ff', '#ffa8dc', '#91bfff', '#ffb347', '#7ed6df'];
     const datasetsStyled = chartData.datasets.map((ds, idx) => ({
@@ -171,7 +180,6 @@
 
     pdf.text('고등학교 성적 변화 - 원점수', 10, 10);
     pdf.addImage(img1, 'PNG', 10, 15, 180, 80);
-
     pdf.text('고등학교 성적 변화 - Z-score', 10, 105);
     pdf.addImage(img2, 'PNG', 10, 110, 180, 80);
 
@@ -182,21 +190,15 @@
     const rawData = localStorage.getItem('rawData');
     const zData = localStorage.getItem('zData');
 
-    if (rawData) {
-      const parsed = JSON.parse(rawData);
-      if (chartRaw) chartRaw.destroy();
-      chartRaw = await loadChartFromData(parsed, 'chart-score-raw', '점수', false);
-    } else {
-      chartRaw = await fetchAndLoadChart('test_score_raw_data.json', 'chart-score-raw', '점수', false);
-    }
+    if (chartRaw) chartRaw.destroy();
+    chartRaw = rawData
+      ? await loadChartFromData(JSON.parse(rawData), 'chart-score-raw', '점수', false)
+      : await fetchAndLoadChart('test_score_raw_data.json', 'chart-score-raw', '점수', false);
 
-    if (zData) {
-      const parsed = JSON.parse(zData);
-      if (chartZ) chartZ.destroy();
-      chartZ = await loadChartFromData(parsed, 'chart-score-z', '표준점수 (Z-score)', true);
-    } else {
-      chartZ = await fetchAndLoadChart('test_z_score_data.json', 'chart-score-z', '표준점수 (Z-score)', true);
-    }
+    if (chartZ) chartZ.destroy();
+    chartZ = zData
+      ? await loadChartFromData(JSON.parse(zData), 'chart-score-z', '표준점수 (Z-score)', true)
+      : await fetchAndLoadChart('test_z_score_data.json', 'chart-score-z', '표준점수 (Z-score)', true);
   }
 
   function deleteChart(type) {
@@ -206,7 +208,7 @@
         chartRaw.destroy();
         chartRaw = null;
       }
-      document.getElementById('chart-score-raw').getContext('2d').clearRect(0, 0, 800, 400);
+      recreateCanvas('chart-score-raw', 'canvas-container-raw');
     }
     if (type === 'z') {
       localStorage.removeItem('zData');
@@ -214,7 +216,7 @@
         chartZ.destroy();
         chartZ = null;
       }
-      document.getElementById('chart-score-z').getContext('2d').clearRect(0, 0, 800, 400);
+      recreateCanvas('chart-score-z', 'canvas-container-z');
     }
   }
 
@@ -224,10 +226,8 @@
     loadChartsFromStorage();
   }
 
-  // 초기 로딩
   window.onload = loadChartsFromStorage;
 
-  // 업로드 이벤트
   document.getElementById('uploadRaw').addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -257,4 +257,3 @@
 
 </body>
 </html>
-
