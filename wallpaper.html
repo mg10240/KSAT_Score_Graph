@@ -6,42 +6,62 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body { margin: 0; background: #fff; }
-    canvas { display: block; margin: 0 auto; }
-    button, label {
-      display: block;
-      margin: 1em auto;
-      padding: 0.5em 1em;
-      font-size: 16px;
-      background: #333;
-      color: #fff;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
+    body {
+      margin: 0;
+      background: #fff;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       text-align: center;
+      color: #333;
     }
-    input[type="file"] { display: none; }
+    canvas {
+      display: block;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 0;
+    }
+    button, label {
+      display: inline-block;
+      margin: 1em 0.5em;
+      padding: 0.7em 1.4em;
+      background: #91bfff;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    button:hover, label:hover {
+      background: #7aaee8;
+    }
+    input[type="file"] {
+      display: none;
+    }
   </style>
 </head>
 <body>
 
-<label for="uploadJson">📁 JSON 데이터 불러오기</label>
-<input type="file" id="uploadJson" accept=".json" />
-<canvas id="wallpaperChart" width="2048" height="2732"></canvas>
-<button onclick="downloadWallpaper()">💾 배경화면 저장</button>
+<h1>iPad 배경화면용 성적 그래프</h1>
+
+<div class="button-group">
+  <label for="uploadJson">📁 JSON 불러오기</label>
+  <input type="file" id="uploadJson" accept=".json" />
+  <button onclick="downloadWallpaper()">💾 배경화면 저장</button>
+</div>
+
+<canvas id="wallpaperChart" width="2732" height="2048"></canvas>
 
 <script>
 let chart;
 
 function recreateCanvas() {
-  const container = document.body;
   const oldCanvas = document.getElementById('wallpaperChart');
   if (oldCanvas) oldCanvas.remove();
   const newCanvas = document.createElement('canvas');
   newCanvas.id = 'wallpaperChart';
-  newCanvas.width = 2048;
-  newCanvas.height = 2732;
-  container.insertBefore(newCanvas, document.querySelector('button'));
+  newCanvas.width = 2732;
+  newCanvas.height = 2048;
+  document.body.appendChild(newCanvas);
   return newCanvas.getContext('2d');
 }
 
@@ -49,12 +69,12 @@ function loadChartFromData(chartData) {
   const ctx = recreateCanvas();
   if (chart) chart.destroy();
 
-  const colorPalette = ['#ff5c5c', '#5c7cfa', '#feca57', '#1dd1a1', '#54a0ff'];
+  const colorPalette = ['#8b73ff', '#ffa8dc', '#91bfff', '#ffb347', '#7ed6df'];
 
   const datasetsStyled = chartData.datasets.map((ds, idx) => ({
     ...ds,
     borderColor: colorPalette[idx % colorPalette.length],
-    borderWidth: 5,
+    borderWidth: 6,
     fill: false,
     tension: 0.4,
     pointRadius: 0
@@ -82,7 +102,7 @@ function loadChartFromData(chartData) {
         padding: {
           left: 0,
           right: 0,
-          top: 2300,
+          top: 1550,
           bottom: 0
         }
       },
