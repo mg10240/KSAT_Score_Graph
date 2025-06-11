@@ -201,7 +201,7 @@
                 const label = ti.dataset.label;
                 if (typeof val === "number") {
                   return isZscore
-                    ? `${label}: ${(val * 20 + 100).toFixed(1)}점`
+                    ? `${label}: ${val}점`
                     : `${label}: ${val}점`;
                 } else {
                   return `${label}: 데이터 오류`;
