@@ -103,7 +103,6 @@
 
   async function loadChartFromData(chartData, canvasId, yLabel, isZscore = false) {
     const ctx = recreateCanvas(canvasId, `canvas-container-${canvasId.includes('z') ? 'z' : 'raw'}`);
-
     const colorPalette = ['#8b73ff', '#ffa8dc', '#91bfff', '#ffb347', '#7ed6df'];
     const datasetsStyled = chartData.datasets.map((ds, idx) => ({
       ...ds,
@@ -131,21 +130,19 @@
         plugins: {
           legend: { position: 'top' },
           tooltip: {
-  callbacks: {
-    label: (ti) => {
-      const val = ti.raw;
-      const label = ti.dataset.label;
-      if (typeof val === "number") {
-        return isZscore
-          ? `${label}: ${(val * 20 + 100).toFixed(1)}점`
-          : `${label}: ${val}점`;
-      } else {
-        return `${label}: 데이터 오류`;
-      }
-    }
-  }
-}
-
+            callbacks: {
+              label: (ti) => {
+                const val = ti.raw;
+                const label = ti.dataset.label;
+                if (typeof val === "number") {
+                  return isZscore
+                    ? `${label}: ${(val * 20 + 100).toFixed(1)}점`
+                    : `${label}: ${val}점`;
+                } else {
+                  return `${label}: 데이터 오류`;
+                }
+              }
+            }
           }
         },
         interaction: { mode: 'nearest', axis: 'x', intersect: false },
@@ -183,7 +180,6 @@
     const pdf = new jsPDF('p', 'mm', 'a4');
     const canvas1 = document.getElementById('chart-score-raw');
     const canvas2 = document.getElementById('chart-score-z');
-
     const img1 = canvas1.toDataURL('image/png');
     const img2 = canvas2.toDataURL('image/png');
 
@@ -191,7 +187,6 @@
     pdf.addImage(img1, 'PNG', 10, 15, 180, 80);
     pdf.text('고등학교 성적 변화 - Z-score', 10, 105);
     pdf.addImage(img2, 'PNG', 10, 110, 180, 80);
-
     pdf.save('성적_시각화.pdf');
   }
 
@@ -218,6 +213,7 @@
         chartRaw = null;
       }
       recreateCanvas('chart-score-raw', 'canvas-container-raw');
+      fetchAndLoadChart('test_score_raw_data.json', 'chart-score-raw', '점수', false).then(c => chartRaw = c);
     }
     if (type === 'z') {
       localStorage.removeItem('zData');
@@ -226,6 +222,7 @@
         chartZ = null;
       }
       recreateCanvas('chart-score-z', 'canvas-container-z');
+      fetchAndLoadChart('test_z_score_data.json', 'chart-score-z', '표준점수 (Z-score)', true).then(c => chartZ = c);
     }
   }
 
@@ -235,7 +232,7 @@
     loadChartsFromStorage();
   }
 
-  window.onload = loadChartsFromStorage;
+  document.addEventListener('DOMContentLoaded', loadChartsFromStorage);
 
   document.getElementById('uploadRaw').addEventListener('change', (e) => {
     const file = e.target.files[0];
@@ -245,6 +242,7 @@
       const data = JSON.parse(evt.target.result);
       localStorage.setItem('rawData', JSON.stringify(data));
       if (chartRaw) chartRaw.destroy();
+      recreateCanvas('chart-score-raw', 'canvas-container-raw');
       chartRaw = await loadChartFromData(data, 'chart-score-raw', '점수', false);
     };
     reader.readAsText(file);
@@ -258,6 +256,7 @@
       const data = JSON.parse(evt.target.result);
       localStorage.setItem('zData', JSON.stringify(data));
       if (chartZ) chartZ.destroy();
+      recreateCanvas('chart-score-z', 'canvas-container-z');
       chartZ = await loadChartFromData(data, 'chart-score-z', '표준점수 (Z-score)', true);
     };
     reader.readAsText(file);
